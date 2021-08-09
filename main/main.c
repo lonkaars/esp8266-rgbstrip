@@ -16,14 +16,42 @@ static const char *TAG = "rgbstrip";
 int color[3];
 static httpd_handle_t server = NULL;
 
-esp_err_t hello_get_handler(httpd_req_t *req) {
-	const char *resp_str = "Hello, world!\n";
-	httpd_resp_send(req, resp_str, strlen(resp_str));
+char *color_to_str() {
+	char *value = (char *)malloc(sizeof(char) * (6 + 1)); // 6 char + 1 \0;
+	sprintf(value, "%02x%02x%02x", color[0], color[1], color[2]);
+	return value;
+}
+
+esp_err_t get_handler(httpd_req_t *req) {
+	const char *resp_str = color_to_str();
+	httpd_resp_send(req, resp_str, 6);
 
 	return ESP_OK;
 }
 
-httpd_uri_t hello = {.uri = "/", .method = HTTP_GET, .handler = hello_get_handler};
+httpd_uri_t get = {.uri = "/", .method = HTTP_GET, .handler = get_handler};
+
+esp_err_t post_handler(httpd_req_t *req) {
+	char buf[6];
+	int remaining = req->content_len;
+
+	if (remaining != 6)
+		return ESP_OK;
+	httpd_req_recv(req, buf, 6);
+
+	char r_hex[] = {buf[0], buf[1], '\0'};
+	char g_hex[] = {buf[2], buf[3], '\0'};
+	char b_hex[] = {buf[4], buf[5], '\0'};
+
+	sscanf(r_hex, "%x", &color[0]);
+	sscanf(g_hex, "%x", &color[1]);
+	sscanf(b_hex, "%x", &color[2]);
+
+	httpd_resp_send_chunk(req, NULL, 0);
+	return ESP_OK;
+}
+
+httpd_uri_t post = {.uri = "/", .method = HTTP_POST, .handler = post_handler};
 
 httpd_handle_t start_webserver(void) {
 	httpd_handle_t server = NULL;
@@ -32,7 +60,8 @@ httpd_handle_t start_webserver(void) {
 	ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
 	if (httpd_start(&server, &config) == ESP_OK) {
 		ESP_LOGI(TAG, "Registering URI handlers");
-		httpd_register_uri_handler(server, &hello);
+		httpd_register_uri_handler(server, &get);
+		httpd_register_uri_handler(server, &post);
 		return server;
 	}
 
