@@ -10,11 +10,33 @@
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 
+#include "driver/pwm.h"
+
 #include <esp_http_server.h>
+
+#define GPIO_OUTPUT_CHANNEL_RED 0
+#define GPIO_OUTPUT_CHANNEL_GREEN 0
+#define GPIO_OUTPUT_CHANNEL_BLUE 2
+
+#define PWM_PERIOD 1000
 
 static const char *TAG = "rgbstrip";
 int color[3];
 static httpd_handle_t server = NULL;
+
+const uint32_t pin_num[] = {GPIO_OUTPUT_CHANNEL_RED, GPIO_OUTPUT_CHANNEL_GREEN,
+							GPIO_OUTPUT_CHANNEL_BLUE};
+
+uint32_t duties[] = {0, 0, 0};
+float phase[] = {0, 0, 0};
+
+void update_strip() {
+	duties[0] = PWM_PERIOD - (int)((float)(PWM_PERIOD * color[0]) / 0xff);
+	duties[1] = PWM_PERIOD - (int)((float)(PWM_PERIOD * color[1]) / 0xff);
+	duties[2] = PWM_PERIOD - (int)((float)(PWM_PERIOD * color[2]) / 0xff);
+	pwm_set_duties(duties);
+	pwm_start();
+}
 
 char *color_to_str() {
 	char *value = (char *)malloc(sizeof(char) * (6 + 1)); // 6 char + 1 \0;
@@ -37,6 +59,7 @@ esp_err_t post_handler(httpd_req_t *req) {
 
 	if (remaining != 6)
 		return ESP_OK;
+
 	httpd_req_recv(req, buf, 6);
 
 	char r_hex[] = {buf[0], buf[1], '\0'};
@@ -46,6 +69,8 @@ esp_err_t post_handler(httpd_req_t *req) {
 	sscanf(r_hex, "%x", &color[0]);
 	sscanf(g_hex, "%x", &color[1]);
 	sscanf(b_hex, "%x", &color[2]);
+
+	update_strip();
 
 	httpd_resp_send_chunk(req, NULL, 0);
 	return ESP_OK;
@@ -101,6 +126,10 @@ void app_main() {
 		esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
 	ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED,
 											   &disconnect_handler, &server));
+
+	pwm_init(PWM_PERIOD, duties, 3, pin_num);
+	pwm_set_phases(phase);
+	pwm_start();
 
 	server = start_webserver();
 }
