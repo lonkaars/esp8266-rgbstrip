@@ -1,4 +1,5 @@
 #include <sys/param.h>
+#include <math.h>
 
 #include "esp_event.h"
 #include "esp_log.h"
@@ -14,11 +15,16 @@
 
 #include <esp_http_server.h>
 
+// channel configuration
 #define GPIO_OUTPUT_CHANNEL_RED 0
 #define GPIO_OUTPUT_CHANNEL_GREEN 0
 #define GPIO_OUTPUT_CHANNEL_BLUE 2
 
+// pwm frequency
 #define PWM_PERIOD 1000
+
+// raises the brigtness value from 0-1 to this power
+#define BRIGHTNESS_CURVE_CORRECTION 3
 
 static const char *TAG = "rgbstrip";
 int color[3];
@@ -31,9 +37,9 @@ uint32_t duties[] = {0, 0, 0};
 float phase[] = {0, 0, 0};
 
 void update_strip() {
-	duties[0] = PWM_PERIOD - (int)((float)(PWM_PERIOD * color[0]) / 0xff);
-	duties[1] = PWM_PERIOD - (int)((float)(PWM_PERIOD * color[1]) / 0xff);
-	duties[2] = PWM_PERIOD - (int)((float)(PWM_PERIOD * color[2]) / 0xff);
+	duties[0] = PWM_PERIOD - (int)( PWM_PERIOD * pow( (float)color[0] / 0xff, BRIGHTNESS_CURVE_CORRECTION ) );
+	duties[1] = PWM_PERIOD - (int)( PWM_PERIOD * pow( (float)color[1] / 0xff, BRIGHTNESS_CURVE_CORRECTION ) );
+	duties[2] = PWM_PERIOD - (int)( PWM_PERIOD * pow( (float)color[2] / 0xff, BRIGHTNESS_CURVE_CORRECTION ) );
 	pwm_set_duties(duties);
 	pwm_start();
 }
