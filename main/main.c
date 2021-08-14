@@ -1,5 +1,5 @@
-#include <sys/param.h>
 #include <math.h>
+#include <sys/param.h>
 
 #include "esp_event.h"
 #include "esp_log.h"
@@ -45,7 +45,7 @@ int transitionc;
 int transitioni;
 
 void update_color(int r, int g, int b) {
-	for(int i = 0; i < transitionc; i++) {
+	for (int i = 0; i < transitionc; i++) {
 		float weight2 = (float)(i + 1) / transitionc;
 		float weight1 = 1 - weight2;
 
@@ -57,9 +57,12 @@ void update_color(int r, int g, int b) {
 }
 
 void update_strip() {
-	duties[0] = PWM_PERIOD - (int)( PWM_PERIOD * pow( (float)color[0] / 0xff, BRIGHTNESS_CURVE_CORRECTION ) );
-	duties[1] = PWM_PERIOD - (int)( PWM_PERIOD * pow( (float)color[1] / 0xff, BRIGHTNESS_CURVE_CORRECTION ) );
-	duties[2] = PWM_PERIOD - (int)( PWM_PERIOD * pow( (float)color[2] / 0xff, BRIGHTNESS_CURVE_CORRECTION ) );
+	duties[0] =
+		PWM_PERIOD - (int)(PWM_PERIOD * pow((float)color[0] / 0xff, BRIGHTNESS_CURVE_CORRECTION));
+	duties[1] =
+		PWM_PERIOD - (int)(PWM_PERIOD * pow((float)color[1] / 0xff, BRIGHTNESS_CURVE_CORRECTION));
+	duties[2] =
+		PWM_PERIOD - (int)(PWM_PERIOD * pow((float)color[2] / 0xff, BRIGHTNESS_CURVE_CORRECTION));
 	pwm_set_duties(duties);
 	pwm_start();
 }
@@ -159,7 +162,7 @@ void app_main() {
 	pwm_start();
 
 	transitionc = TRANSITION_DURATION_MS / TRANSITION_STEP_LEN_MS;
-	transitionv = (int*) malloc(sizeof(int) * transitionc * 3);
+	transitionv = (int *)malloc(sizeof(int) * transitionc * 3);
 
 	server = start_webserver();
 
