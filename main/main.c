@@ -24,7 +24,11 @@
 #define PWM_PERIOD 1000
 
 // raises the brigtness value from 0-1 to this power
-#define BRIGHTNESS_CURVE_CORRECTION 3
+#define BRIGHTNESS_CURVE_CORRECTION 3.f
+
+// transition
+#define TRANSITION_DURATION_MS 300
+#define TRANSITION_STEP_LEN_MS 10
 
 static const char *TAG = "rgbstrip";
 int color[3];
@@ -35,6 +39,22 @@ const uint32_t pin_num[] = {GPIO_OUTPUT_CHANNEL_RED, GPIO_OUTPUT_CHANNEL_GREEN,
 
 uint32_t duties[] = {0, 0, 0};
 float phase[] = {0, 0, 0};
+
+int *transitionv;
+int transitionc;
+int transitioni;
+
+void update_color(int r, int g, int b) {
+	for(int i = 0; i < transitionc; i++) {
+		float weight2 = (float)(i + 1) / transitionc;
+		float weight1 = 1 - weight2;
+
+		transitionv[i * 3 + 0] = (int)((float)color[0] * weight1 + (float)r * weight2);
+		transitionv[i * 3 + 1] = (int)((float)color[1] * weight1 + (float)g * weight2);
+		transitionv[i * 3 + 2] = (int)((float)color[2] * weight1 + (float)b * weight2);
+	}
+	transitioni = 0;
+}
 
 void update_strip() {
 	duties[0] = PWM_PERIOD - (int)( PWM_PERIOD * pow( (float)color[0] / 0xff, BRIGHTNESS_CURVE_CORRECTION ) );
@@ -72,11 +92,12 @@ esp_err_t post_handler(httpd_req_t *req) {
 	char g_hex[] = {buf[2], buf[3], '\0'};
 	char b_hex[] = {buf[4], buf[5], '\0'};
 
-	sscanf(r_hex, "%x", &color[0]);
-	sscanf(g_hex, "%x", &color[1]);
-	sscanf(b_hex, "%x", &color[2]);
+	int r, g, b;
+	sscanf(r_hex, "%x", &r);
+	sscanf(g_hex, "%x", &g);
+	sscanf(b_hex, "%x", &b);
 
-	update_strip();
+	update_color(r, g, b);
 
 	httpd_resp_send_chunk(req, NULL, 0);
 	return ESP_OK;
@@ -137,5 +158,18 @@ void app_main() {
 	pwm_set_phases(phase);
 	pwm_start();
 
+	transitionc = TRANSITION_DURATION_MS / TRANSITION_STEP_LEN_MS;
+	transitionv = (int*) malloc(sizeof(int) * transitionc * 3);
+
 	server = start_webserver();
+
+	update_color(0, 0, 0);
+	for (;;) {
+		color[0] = transitionv[transitioni * 3 + 0];
+		color[1] = transitionv[transitioni * 3 + 1];
+		color[2] = transitionv[transitioni * 3 + 2];
+		update_strip();
+		vTaskDelay(TRANSITION_STEP_LEN_MS / portTICK_RATE_MS);
+		transitioni = MIN(transitionc - 1, transitioni + 1);
+	}
 }
